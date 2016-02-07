@@ -19,11 +19,14 @@ numTemplates = length(templateFileNames);
 
 %% Set the values of SSD_THRESH and NCC_THRESH
 SSD_THRESH = 1508603;
-NCC_THRESH = 50000;
+NCC_THRESH = 0;
 
 %% Initialize two output images to the RGB input image
 output_img1 = image;
 output_img2 = image;
+
+%% Setup random number generation
+rng(0, 'twister');
 
 %% For each template, do the following
 for i=1:numTemplates
@@ -41,14 +44,14 @@ for i=1:numTemplates
     cardName = templateFileNames(i).name(cardNameIdx1:cardNameIdx2); 
     
     %% Find the best match [row column] using Sum of Square Difference (SSD)
-    %[SSDrow, SSDcol] = SSD(grayImage, T, SSD_THRESH);
-    
-    % If the best match exists
-    % overlay the card name on the best match location on the SSD output image                      
-    % Insert the card name on the output images (use small font size, e.g. 6)
-    % set the overlay locations to the best match locations, plus-minus a random integer   
-%    position = [SSDcol, SSDrow];
-%    output_img1 = insertText(output_img1, position, cardName);
+%     [SSDrow, SSDcol] = SSD(grayImage, T, SSD_THRESH);
+%     
+%     % If the best match exists
+%     % overlay the card name on the best match location on the SSD output image                      
+%     % Insert the card name on the output images (use small font size, e.g. 6)
+%     % set the overlay locations to the best match locations, plus-minus a random integer 
+%     position = [SSDcol+randi([-20, 20]), SSDrow+randi([-10, 10])];
+%     output_img1 = insertText(output_img1, position, cardName);
     
     %% Find the best match [row column] using Normalized Cross Correlation (NCC)
     [NCCrow, NCCcol] = NCC(grayImage, T, NCC_THRESH);
@@ -56,8 +59,8 @@ for i=1:numTemplates
     % If the best match exists
     % overlay the card name on the best match location on the NCC output image                      
     % Insert the card name on the output images (use small font size, e.g. 6)
-    % set the overlay locations to the best match locations, plus-minus a random integer   
-    position = [NCCcol, NCCrow];
+    % set the overlay locations to the best match locations, plus-minus a random integer
+    position = [NCCcol+randi([-20, 20]), NCCrow+randi([-20, 20])];
     output_img2 = insertText(output_img2, position, cardName);
         
     
@@ -86,7 +89,6 @@ half_Tr = idivide(T_row, int32(2));
 half_Tc = idivide(T_col, int32(2));
 Gray_row = size(grayImage,1);
 Gray_col = size(grayImage,2);
-SSD_matrix = zeros(Gray_row-T_row, Gray_col-T_col);
 min_ssd = realmax;
 min_row = 0;
 min_col = 0;
@@ -101,7 +103,6 @@ for row = half_Tr:(Gray_row-half_Tr-1)
            min_row = row;
            min_col = col;
         end
-        SSD_matrix(row-half_Tr+1, col-half_Tc+1) = ssd;
     end
 end
 
@@ -109,8 +110,6 @@ end
     SSDcol = -1;
     if (min_ssd <= SSD_THRESH)
        disp(min_ssd);
-       disp(min_row);
-       disp(min_col);
        
        SSDrow = min_row;
        SSDcol = min_col;
@@ -133,17 +132,14 @@ half_Tr = idivide(T_row, int32(2));
 half_Tc = idivide(T_col, int32(2));
 Gray_row = size(grayImage,1);
 Gray_col = size(grayImage,2);
-SSD_matrix = zeros(Gray_row-T_row, Gray_col-T_col);
 max_ncc = realmin;
 max_row = 0;
 max_col = 0;
 
 T_avg = zeros(T_row, T_col);
 T_avg(:) = mean(mean(T));
-disp(isinteger(T));
-disp(isinteger(T_avg));
-T_diff = T - T_avg;
-T_square = sum(sum(T_avg_diff .^ 2));
+T_diff = double(T) - T_avg;
+T_square = sum(sum(T_diff .^ 2));
 
 for row = half_Tr:(Gray_row-half_Tr-1)
     for col = half_Tc:(Gray_col-half_Tc-1)
@@ -151,7 +147,7 @@ for row = half_Tr:(Gray_row-half_Tr-1)
         
         im_avg = zeros(T_row, T_col);
         im_avg(:) = mean(mean(patch));
-        im_diff = patch - im_avg;
+        im_diff = double(patch) - im_avg;
         im_square = sum(sum(im_diff.^2));
         
         numerator = sum(sum((T_diff).*(im_diff)));
@@ -164,7 +160,6 @@ for row = half_Tr:(Gray_row-half_Tr-1)
            max_row = row;
            max_col = col;
         end
-        SSD_matrix(row-half_Tr+1, col-half_Tc+1) = ncc;
     end
 end
 
@@ -172,8 +167,6 @@ end
     NCCcol = -1;
     if (max_ncc >= NCC_THRESH)
        disp(max_ncc);
-       disp(max_row);
-       disp(max_col);
        
        NCCrow = max_row;
        NCCcol = max_col;
