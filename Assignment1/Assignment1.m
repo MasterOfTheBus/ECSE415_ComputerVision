@@ -19,10 +19,11 @@ numTemplates = length(templateFileNames);
 
 %% Set the values of SSD_THRESH and NCC_THRESH
 SSD_THRESH = 1508603;
-NCC_THRESH = 0;
+NCC_THRESH = 0.5;
 
 %% Initialize two output images to the RGB input image
 output_img1 = image;
+figure
 output_img2 = image;
 
 %% Setup random number generation
@@ -44,14 +45,14 @@ for i=1:numTemplates
     cardName = templateFileNames(i).name(cardNameIdx1:cardNameIdx2); 
     
     %% Find the best match [row column] using Sum of Square Difference (SSD)
-%     [SSDrow, SSDcol] = SSD(grayImage, T, SSD_THRESH);
-%     
-%     % If the best match exists
-%     % overlay the card name on the best match location on the SSD output image                      
-%     % Insert the card name on the output images (use small font size, e.g. 6)
-%     % set the overlay locations to the best match locations, plus-minus a random integer 
-%     position = [SSDcol+randi([-20, 20]), SSDrow+randi([-10, 10])];
-%     output_img1 = insertText(output_img1, position, cardName);
+    [SSDrow, SSDcol] = SSD(grayImage, T, SSD_THRESH);
+    
+    % If the best match exists
+    % overlay the card name on the best match location on the SSD output image                      
+    % Insert the card name on the output images (use small font size, e.g. 6)
+    % set the overlay locations to the best match locations, plus-minus a random integer 
+    position = [SSDcol+randi([-20, 20]), SSDrow+randi([-10, 10])];
+    output_img1 = insertText(output_img1, position, cardName);
     
     %% Find the best match [row column] using Normalized Cross Correlation (NCC)
     [NCCrow, NCCcol] = NCC(grayImage, T, NCC_THRESH);
@@ -68,6 +69,7 @@ end
 
 %% Display the output images 
 imshow(output_img1);
+figure
 imshow(output_img2);
 
 end
