@@ -46,16 +46,16 @@ for count=1:size(variance, 2)
         %% Convert the template to gray-scale
         T = rgb2gray(T);
         
-%         %% Extract the card name from its file name (look between '-' and '.' chars)
-%         % use the cardName variable for generating output images
-%         cardNameIdx1 = findstr(templateFileNames(i).name,'-') + 1;
-%         cardNameIdx2 = findstr(templateFileNames(i).name,'.') - 1;
-%         cardName = templateFileNames(i).name(cardNameIdx1:cardNameIdx2);
-%         
-%         %% Find the best match [row column] using Sum of Square Difference (SSD)
-%         [SSDrow, SSDcol, ssd] = SSD(grayImage, T, SSD_THRESH);
-%         
-%         mean_SSD(count) = mean_SSD(count) + ssd;
+        %% Extract the card name from its file name (look between '-' and '.' chars)
+        % use the cardName variable for generating output images
+        cardNameIdx1 = findstr(templateFileNames(i).name,'-') + 1;
+        cardNameIdx2 = findstr(templateFileNames(i).name,'.') - 1;
+        cardName = templateFileNames(i).name(cardNameIdx1:cardNameIdx2);
+        
+        %% Find the best match [row column] using Sum of Square Difference (SSD)
+        [SSDrow, SSDcol, ssd] = SSD(grayImage, T, SSD_THRESH);
+        
+        mean_SSD(count) = mean_SSD(count) + ssd;
         
         % If the best match exists
         % overlay the card name on the best match location on the SSD output image
@@ -65,9 +65,9 @@ for count=1:size(variance, 2)
         %output_img1 = insertText(output_img1, position, cardName);
         
         %% Find the best match [row column] using Normalized Cross Correlation (NCC)
-        [NCCrow, NCCcol, ncc] = NCC(grayImage, T, NCC_THRESH);
-        
-        mean_NCC(count) = mean_SSD(count) + ncc;
+%         [NCCrow, NCCcol, ncc] = NCC(grayImage, T, NCC_THRESH);
+%         
+%         mean_NCC(count) = mean_NCC(count) + ncc;
         
         % If the best match exists
         % overlay the card name on the best match location on the NCC output image
@@ -81,15 +81,12 @@ for count=1:size(variance, 2)
 end
 
 mean_SSD = mean_SSD / numTemplates;
-%     mean_NCC = mean_NCC / numTemplates;
-
-disp(mean_SSD);
-disp(variance);
+% mean_NCC = mean_NCC / numTemplates;
 
 %% Display the plot
 scatter(variance, mean_SSD);
-%figure
-%scatter(variance, mean_NCC);
+% figure
+% scatter(variance, mean_NCC);
 
 %% Display the output images
 %     imshow(output_img1);
@@ -118,10 +115,17 @@ min_ssd = realmax;
 min_row = 0;
 min_col = 0;
 
+T_mean = zeros(T_row, T_col);
+T_mean(:) = mean(mean(T));
+T_diff = double(T) - T_mean;
+patch_mean = zeros(T_row, T_col);
+
 for row = half_Tr:(Gray_row-half_Tr-1)
     for col = half_Tc:(Gray_col-half_Tc-1)
         patch = grayImage(row-half_Tr+1:row+half_Tr+1, col-half_Tc+1:col+half_Tc+1);
-        squared_diff = (T - patch).^2;
+        patch_mean(:) = mean(mean(patch));
+        
+        squared_diff = (T_diff - double(patch) + patch_mean).^2;
         ssd = sum(sum(squared_diff));
         if ssd < min_ssd
             min_ssd = ssd;
