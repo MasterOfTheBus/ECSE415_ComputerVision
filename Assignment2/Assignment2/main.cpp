@@ -5,6 +5,7 @@
 #include <sstream>
 #include <iomanip>
 #include <algorithm>
+#include <limits>
 
 using namespace cv;
 using namespace std;
@@ -307,18 +308,21 @@ void Test(const Caltech101 &Dataset, const Mat codeBook, const vector<vector<Mat
 
     bowDExtractor->setVocabulary(codeBook);
 
+    vector< vector<unsigned int> > compared_categories;
+    int numCorrect = 0;
+
     // loop for each category
-    for (unsigned int i = 0; i < Dataset.trainingImages.size(); i++) {
+    for (unsigned int i = 0; i < Dataset.testImages.size(); i++) {
         // each image of each category
-        for (unsigned int j = 0; j < Dataset.trainingImages[i].size(); j++) {
-            Mat I = Dataset.trainingImages[i][j];
+        for (unsigned int j = 0; j < Dataset.testImages[i].size(); j++) {
+            Mat I = Dataset.testImages[i][j];
 
             // detect key points
             vector<KeyPoint> keyPoints;
             featureDetector->detect(I, keyPoints);
 
             // discard keypoints ouside the annotation rectangle
-            Rect annotation = Dataset.trainingAnnotations[i][j];
+            Rect annotation = Dataset.testAnnotations[i][j];
             for (unsigned int k = 0; k < keyPoints.size(); k++) {
                 // outside of rectangle, discard
                 if ((keyPoints[k].pt.x < annotation.tl().x || keyPoints[k].pt.x > annotation.br().x) ||
@@ -332,12 +336,26 @@ void Test(const Caltech101 &Dataset, const Mat codeBook, const vector<vector<Mat
             bowDExtractor->compute2(I, keyPoints, histogram);
 
             // compare and find the best matching histogram
-            double best_dist = -1;
+            double best_dist = numeric_limits<double>::max();
+            unsigned int best_m = 0;
+            unsigned int best_n = 0;
             for (unsigned int m = 0; m < imageDescriptors.size(); m++) {
                 for (unsigned int n = 0; n < imageDescriptors[m].size(); n++) {
-                    dist = norm(histogram, imageDescriptors[m][n]);
+                    double dist = norm(histogram, imageDescriptors[m][n]);
+                    if (dist < best_dist) {
+                        best_dist = dist;
+                        best_m = m;
+                        best_n = n;
+                    }
                 }
             }
+
+            // assign the category index
+            compared_categories[i][j] = best_m;
+            if (best_m == i) numCorrect++;
         }
     }
+
+    double ratio = double(numCorrect) / double(Dataset.testImages.size() * Dataset.testImages[0].size());
+    cout << ratio << endl;
 }
