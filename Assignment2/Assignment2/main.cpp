@@ -193,6 +193,8 @@ int main(void)
 	/* Training */	
     Train(Dataset, codeBook, imageDescriptors, numCodewords);
 
+    cout << "Trained" << endl;
+
 	/* Testing */	
     Test(Dataset, codeBook, imageDescriptors);
 
@@ -257,11 +259,14 @@ void Train(const Caltech101 &Dataset, Mat &codeBook, vector<vector<Mat>> &imageD
         }
     }
 
+    cout << "computed descriptors, creating the codebook" << endl;
+
     // create a codebook
     BOWKMeansTrainer trainer = BOWKMeansTrainer(numCodewords);
     trainer.add(D);
     codeBook = trainer.cluster();
 
+    // Represent the object categories using the codebook
     // BOW histogram for each image
     Ptr<DescriptorMatcher> descriptorMatcher = DescriptorMatcher::create("BruteForce");
     Ptr<BOWImgDescriptorExtractor> bowDExtractor = new BOWImgDescriptorExtractor(descriptorExtractor, descriptorMatcher);
@@ -270,6 +275,7 @@ void Train(const Caltech101 &Dataset, Mat &codeBook, vector<vector<Mat>> &imageD
     // loop for each category
     for (unsigned int i = 0; i < Dataset.trainingImages.size(); i++) {
         // each image of each category
+        vector<Mat> category_descriptors;
         for (unsigned int j = 0; j < Dataset.trainingImages[i].size(); j++) {
             Mat I = Dataset.trainingImages[i][j];
 
@@ -288,8 +294,12 @@ void Train(const Caltech101 &Dataset, Mat &codeBook, vector<vector<Mat>> &imageD
             }
 
             // Compute histogram representation and store in descriptors
-            bowDExtractor->compute2(I, keyPoints, imageDescriptors[i][j]);
+            //Mat histogram;
+            Mat histogram;
+            bowDExtractor->compute2(I, keyPoints, histogram);
+            category_descriptors.push_back(histogram);
         }
+        imageDescriptors.push_back(category_descriptors);
     }
 }
 
@@ -308,12 +318,13 @@ void Test(const Caltech101 &Dataset, const Mat codeBook, const vector<vector<Mat
 
     bowDExtractor->setVocabulary(codeBook);
 
-    vector< vector<unsigned int> > compared_categories;
+//    vector< vector<unsigned int> > compared_categories;
     int numCorrect = 0;
 
     // loop for each category
     for (unsigned int i = 0; i < Dataset.testImages.size(); i++) {
         // each image of each category
+        cout << i << endl;
         for (unsigned int j = 0; j < Dataset.testImages[i].size(); j++) {
             Mat I = Dataset.testImages[i][j];
 
@@ -338,20 +349,21 @@ void Test(const Caltech101 &Dataset, const Mat codeBook, const vector<vector<Mat
             // compare and find the best matching histogram
             double best_dist = numeric_limits<double>::max();
             unsigned int best_m = 0;
-            unsigned int best_n = 0;
+//            unsigned int best_n = 0;
             for (unsigned int m = 0; m < imageDescriptors.size(); m++) {
                 for (unsigned int n = 0; n < imageDescriptors[m].size(); n++) {
                     double dist = norm(histogram, imageDescriptors[m][n]);
                     if (dist < best_dist) {
                         best_dist = dist;
                         best_m = m;
-                        best_n = n;
+//                        best_n = n;
                     }
                 }
             }
 
             // assign the category index
-            compared_categories[i][j] = best_m;
+            // compared_categories[i][j] = best_m;
+            cout << Dataset.categoryNames[i] << " marked as " << Dataset.categoryNames[best_m] << endl;
             if (best_m == i) numCorrect++;
         }
     }
