@@ -6,6 +6,8 @@
 #include <iomanip>
 #include <algorithm>
 #include <limits>
+#include <stdlib.h>
+#include <time.h>
 
 using namespace cv;
 using namespace std;
@@ -173,7 +175,7 @@ int main(void)
 	const int numTestingData = 2;
 
 	/* Set the number of codewords*/
-	const int numCodewords = 100; 
+    const int numCodewords = 1000;
 
 	/* Load the dataset by instantiating the helper class */
 	Caltech101 Dataset(datasetPath, numTrainingData, numTestingData);
@@ -215,8 +217,6 @@ void Train(const Caltech101 &Dataset, Mat &codeBook, vector<vector<Mat>> &imageD
     // Mat object to store all the SIFT descriptors of all training categories
     Mat D;
 
-//    bool first = true;
-
     // loop for each category
     for (unsigned int i = 0; i < Dataset.trainingImages.size(); i++) {
         // each image of each category
@@ -230,25 +230,61 @@ void Train(const Caltech101 &Dataset, Mat &codeBook, vector<vector<Mat>> &imageD
             // get the annotation rectangle
             Rect annotation = Dataset.trainingAnnotations[i][j];
 
-//            if (first) {
-//                first = false;
+//            if (j == 10) {
 //                // test to see the key points on the image
 //                Mat outI;
 //                drawKeypoints(I, keyPoints, outI);
-//                CvScalar color = {1.0, 0.0, 0.0, 0.0};
+//                CvScalar color = {0.0, 0.0, 255.0, 0.0};
 //                rectangle(outI, annotation, color);
 //                imshow("Annotated test with key points", outI);
 //                waitKey(0);
 //            }
 
+            cout << "size: " << keyPoints.size() << endl;
+
+            int bx = annotation.width + annotation.tl().x;
+//            int by = annotation.tl().y;
+//            int dx = annotation.tl().x;
+            int dy = annotation.height + annotation.tl().x;
+
+            int bax = annotation.width;
+//            int bay = 0;
+//            int dax = 0;
+            int day = annotation.height;
+
+
             // discard keypoints ouside the annotation rectangle
             for (unsigned int k = 0; k < keyPoints.size(); k++) {
                 // outside of rectangle, discard
-                if ((keyPoints[k].pt.x < annotation.tl().x || keyPoints[k].pt.x > annotation.br().x) ||
-                        (keyPoints[k].pt.y > annotation.tl().y || keyPoints[k].pt.y < annotation.br().y)) {
+#if 1
+                if (!annotation.contains(keyPoints[k].pt)) {
                     keyPoints.erase(keyPoints.begin()+k);
                 }
+#endif
+#if 0
+                if ((keyPoints[k].pt.x - annotation.tl().x) * bax < 0 ||
+                    (keyPoints[k].pt.x - bx) * bax > 0 ||
+                    (keyPoints[k].pt.y - annotation.tl().y) * day < 0 ||
+                    (keyPoints[k].pt.y - dy) * day > 0) {
+
+                    keyPoints.erase(keyPoints.begin()+k);
+                }
+#endif
+
             }
+
+            cout << "size after: " << keyPoints.size() << endl;
+
+
+//            if (j == 10) {
+//                // test to see the key points on the image
+//                Mat outI;
+//                drawKeypoints(I, keyPoints, outI);
+//                CvScalar color = {0.0, 0.0, 255.0, 0.0};
+//                rectangle(outI, annotation, color);
+//                imshow("Annotated test with key points", outI);
+//                waitKey(0);
+//            }
 
             // compute SIFT descriptors
             Mat descriptor;
@@ -306,6 +342,8 @@ void Train(const Caltech101 &Dataset, Mat &codeBook, vector<vector<Mat>> &imageD
 /* Test BoW */
 void Test(const Caltech101 &Dataset, const Mat codeBook, const vector<vector<Mat>> imageDescriptors)
 {
+    srand(time(NULL));
+
     // Create a SIFT feature detector object
     Ptr<FeatureDetector> featureDetector = FeatureDetector::create("SIFT");
 
@@ -320,6 +358,7 @@ void Test(const Caltech101 &Dataset, const Mat codeBook, const vector<vector<Mat
 
 //    vector< vector<unsigned int> > compared_categories;
     int numCorrect = 0;
+//    int printcount = 0;
 
     // loop for each category
     for (unsigned int i = 0; i < Dataset.testImages.size(); i++) {
@@ -334,6 +373,21 @@ void Test(const Caltech101 &Dataset, const Mat codeBook, const vector<vector<Mat
 
             // discard keypoints ouside the annotation rectangle
             Rect annotation = Dataset.testAnnotations[i][j];
+
+//            if (printcount < 2 && (rand() % 5 + 1) == 3) {
+//                printcount++;
+//                // test to see the key points on the image
+//                Mat outI;
+//                drawKeypoints(I, keyPoints, outI);
+//                CvScalar color = {1.0, 0.0, 0.0, 0.0};
+//                rectangle(outI, annotation, color);
+//                stringstream ss;
+//                ss << "Category " << i << " Image " << j;
+//                imshow(ss.str(), outI);
+//                waitKey(0);
+//                destroyWindow(ss.str());
+//            }
+
             for (unsigned int k = 0; k < keyPoints.size(); k++) {
                 // outside of rectangle, discard
                 if ((keyPoints[k].pt.x < annotation.tl().x || keyPoints[k].pt.x > annotation.br().x) ||
@@ -363,7 +417,8 @@ void Test(const Caltech101 &Dataset, const Mat codeBook, const vector<vector<Mat
 
             // assign the category index
             // compared_categories[i][j] = best_m;
-            cout << Dataset.categoryNames[i] << " marked as " << Dataset.categoryNames[best_m] << endl;
+            cout << "category: " << i << ": " << Dataset.categoryNames[i] << " image " << j << " marked as "
+                 << Dataset.categoryNames[best_m] << endl;
             if (best_m == i) numCorrect++;
         }
     }
