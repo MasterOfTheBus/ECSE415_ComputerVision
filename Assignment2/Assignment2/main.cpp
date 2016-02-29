@@ -1,6 +1,7 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/nonfree/nonfree.hpp>
 #include <string>
+#include <iostream>
 #include <fstream>
 #include <sstream>
 #include <iomanip>
@@ -8,6 +9,9 @@
 #include <limits>
 #include <stdlib.h>
 #include <time.h>
+
+#define NO_DISCARD 1
+#define TRAINING 0
 
 using namespace cv;
 using namespace std;
@@ -175,7 +179,7 @@ int main(void)
 	const int numTestingData = 2;
 
 	/* Set the number of codewords*/
-    const int numCodewords = 1000;
+    const int numCodewords = 100;
 
 	/* Load the dataset by instantiating the helper class */
 	Caltech101 Dataset(datasetPath, numTrainingData, numTestingData);
@@ -192,13 +196,20 @@ int main(void)
 	Mat codeBook;	
     vector<vector<Mat>> imageDescriptors;
 
+    ofstream file;
+//    stringstream ss;
+//    ss << "C:\\Users\\Lazy\\Documents\\GitHub\\Computer_Vision\\Assignment2\\to_matlab" << i << ".txt" << endl;
+    file.open("test_file.txt");
+    file << "HI\n";
+    file.close();
+
 	/* Training */	
-    Train(Dataset, codeBook, imageDescriptors, numCodewords);
+//    Train(Dataset, codeBook, imageDescriptors, numCodewords);
 
     cout << "Trained" << endl;
 
 	/* Testing */	
-    Test(Dataset, codeBook, imageDescriptors);
+//    Test(Dataset, codeBook, imageDescriptors);
 
     cout << "All Done" << endl;
 
@@ -227,20 +238,9 @@ void Train(const Caltech101 &Dataset, Mat &codeBook, vector<vector<Mat>> &imageD
             vector<KeyPoint> keyPoints;
             featureDetector->detect(I, keyPoints);
 
+#if NO_DISCARD
             // get the annotation rectangle
             Rect annotation = Dataset.trainingAnnotations[i][j];
-
-//            if (j == 10) {
-//                // test to see the key points on the image
-//                Mat outI;
-//                drawKeypoints(I, keyPoints, outI);
-//                CvScalar color = {0.0, 0.0, 255.0, 0.0};
-//                rectangle(outI, annotation, color);
-//                imshow("Annotated test with key points", outI);
-//                waitKey(0);
-//            }
-
-            cout << "size: " << keyPoints.size() << endl;
 
             int bx = annotation.width + annotation.tl().x;
 //            int by = annotation.tl().y;
@@ -252,31 +252,16 @@ void Train(const Caltech101 &Dataset, Mat &codeBook, vector<vector<Mat>> &imageD
 //            int dax = 0;
             int day = annotation.height;
 
-
             // discard keypoints ouside the annotation rectangle
             for (unsigned int k = 0; k < keyPoints.size(); k++) {
                 // outside of rectangle, discard
-#if 1
                 if (!annotation.contains(keyPoints[k].pt)) {
                     keyPoints.erase(keyPoints.begin()+k);
                 }
-#endif
-#if 0
-                if ((keyPoints[k].pt.x - annotation.tl().x) * bax < 0 ||
-                    (keyPoints[k].pt.x - bx) * bax > 0 ||
-                    (keyPoints[k].pt.y - annotation.tl().y) * day < 0 ||
-                    (keyPoints[k].pt.y - dy) * day > 0) {
-
-                    keyPoints.erase(keyPoints.begin()+k);
-                }
-#endif
-
             }
+#endif
 
-            cout << "size after: " << keyPoints.size() << endl;
-
-
-//            if (j == 10) {
+//            if (j == 15) {
 //                // test to see the key points on the image
 //                Mat outI;
 //                drawKeypoints(I, keyPoints, outI);
@@ -302,6 +287,8 @@ void Train(const Caltech101 &Dataset, Mat &codeBook, vector<vector<Mat>> &imageD
     trainer.add(D);
     codeBook = trainer.cluster();
 
+    cout << "clustered, generating histograms" << endl;
+
     // Represent the object categories using the codebook
     // BOW histogram for each image
     Ptr<DescriptorMatcher> descriptorMatcher = DescriptorMatcher::create("BruteForce");
@@ -312,6 +299,7 @@ void Train(const Caltech101 &Dataset, Mat &codeBook, vector<vector<Mat>> &imageD
     for (unsigned int i = 0; i < Dataset.trainingImages.size(); i++) {
         // each image of each category
         vector<Mat> category_descriptors;
+        Mat average_mat = Mat::zeros(1, numCodewords, CV_32F);
         for (unsigned int j = 0; j < Dataset.trainingImages[i].size(); j++) {
             Mat I = Dataset.trainingImages[i][j];
 
@@ -320,22 +308,41 @@ void Train(const Caltech101 &Dataset, Mat &codeBook, vector<vector<Mat>> &imageD
             featureDetector->detect(I, keyPoints);
 
             // discard keypoints ouside the annotation rectangle
+#if NO_DISCARD
             Rect annotation = Dataset.trainingAnnotations[i][j];
             for (unsigned int k = 0; k < keyPoints.size(); k++) {
                 // outside of rectangle, discard
-                if ((keyPoints[k].pt.x < annotation.tl().x || keyPoints[k].pt.x > annotation.br().x) ||
-                        (keyPoints[k].pt.y > annotation.tl().y || keyPoints[k].pt.y < annotation.br().y)) {
+                if (!annotation.contains(keyPoints[k].pt)) {
                     keyPoints.erase(keyPoints.begin()+k);
                 }
             }
+#endif
 
             // Compute histogram representation and store in descriptors
             //Mat histogram;
             Mat histogram;
             bowDExtractor->compute2(I, keyPoints, histogram);
             category_descriptors.push_back(histogram);
+
+            average_mat += histogram;
         }
         imageDescriptors.push_back(category_descriptors);
+
+        average_mat = average_mat / Dataset.trainingImages[i].size();
+
+#if 0
+        ofstream file;
+        stringstream ss;
+        ss << "C:\\Users\\Lazy\\Documents\\GitHub\\Computer_Vision\\Assignment2\\to_matlab" << i << ".txt" << endl;
+        file.open(ss.str());
+        for (int m = 0; m < average_mat.rows; m++) {
+            for (int n = 0; n < average_mat.cols; n++) {
+                file << average_mat.at<double>(m, n) << " ";
+            }
+            file << "\n";
+        }
+        file.close();
+#endif
     }
 }
 
@@ -365,12 +372,17 @@ void Test(const Caltech101 &Dataset, const Mat codeBook, const vector<vector<Mat
         // each image of each category
         cout << i << endl;
         for (unsigned int j = 0; j < Dataset.testImages[i].size(); j++) {
+#if TRAINING
+            Mat I = Dataset.trainingImages[i][j];
+#else
             Mat I = Dataset.testImages[i][j];
+#endif
 
             // detect key points
             vector<KeyPoint> keyPoints;
             featureDetector->detect(I, keyPoints);
 
+#if NO_DISCARD
             // discard keypoints ouside the annotation rectangle
             Rect annotation = Dataset.testAnnotations[i][j];
 
@@ -390,11 +402,11 @@ void Test(const Caltech101 &Dataset, const Mat codeBook, const vector<vector<Mat
 
             for (unsigned int k = 0; k < keyPoints.size(); k++) {
                 // outside of rectangle, discard
-                if ((keyPoints[k].pt.x < annotation.tl().x || keyPoints[k].pt.x > annotation.br().x) ||
-                        (keyPoints[k].pt.y > annotation.tl().y || keyPoints[k].pt.y < annotation.br().y)) {
+                if (!annotation.contains(keyPoints[k].pt)) {
                     keyPoints.erase(keyPoints.begin()+k);
                 }
             }
+#endif
 
             // Compute histogram representation
             Mat histogram;

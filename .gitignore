@@ -2,3 +2,8 @@
 *.zip
 *.pro*
 *Debug
+*.docx
+*.xlsx
+*.PNG
+*.png
+*Release
