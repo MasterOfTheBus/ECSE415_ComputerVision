@@ -6,6 +6,7 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
+#include <limits>
 
 using namespace cv;
 using namespace std;
@@ -60,8 +61,14 @@ int main()
     FindOutputLimits(Images, transforms, xMin, xMax, yMin, yMax);
 
     // 4. Compute the size of the panorama
+    int width = xMax - xMin + 1;
+    int height = yMax - yMin + 1;
+
+    cout << xMax << ", " << xMin << ", " << yMax << ", " << yMin << endl;
+    cout << width << ", " << height << endl;
 
     // 5. Initialize the panorama image
+    Mat panorama = Mat(height, width, CV_64F);
 
     // 6. Initialize warped mask images
 
@@ -133,7 +140,53 @@ void Homography(vector<Mat> Images, vector<Mat> transforms) {
 }
 
 void FindOutputLimits(vector<Mat> Images, vector<Mat> transforms, int xMin, int xMax, int yMin, int yMax) {
+    // get the corners of the first image
+    int height = Images[0].size().height;
+    int width = Images[0].size().width;
 
+    // create the corners
+    vector<Mat> corners;
+    Mat corner = Mat::zeros(3, 1, CV_64F);
+    corner.at<float>(2, 0) = 1;
+    corners.push_back(corner);
+    corner.at<float>(1, 0) = height - 1;
+    corners.push_back(corner);
+    corner.at<float>(0,0) = width - 1;
+    corners.push_back(corner);
+    corner.at<float>(1,0) = 0;
+    corners.push_back(corner);
+
+    cout << "Finding min and max corners" << endl;
+
+    // project and find the min and max
+    xMin = numeric_limits<int>::max();
+    xMax = numeric_limits<int>::min();
+    yMin = numeric_limits<int>::max();
+    yMax = numeric_limits<int>::min();
+    for (unsigned int i = 0; i < transforms.size(); i++) {
+        for (unsigned int j = 0; j < corners.size(); j++) {
+            Mat projected = transforms[i] * corners[j];
+            if (projected.at<float>(0,0) < xMin && projected.at<float>(1,0) < yMin) {
+                xMin = projected.at<float>(0,0);
+                yMin = projected.at<float>(1,0);
+            }
+            if (projected.at<float>(0,0) > xMax && projected.at<float>(1,0) > yMax) {
+                xMax = projected.at<float>(0,0);
+                yMax = projected.at<float>(1,0);
+            }
+        }
+    }
+
+    cout << "transforms" << endl;
+
+    // translate all images so that xMin and yMin become zero
+    Mat translation = Mat::eye(3, 3, CV_64F);
+    translation.at<float>(0,2) = -1 * xMin;
+    translation.at<float>(1,2) = -1 * yMin;
+
+    for (unsigned int i = 0; i < transforms.size(); i++) {
+        transforms[i] = translation * transforms[i];
+    }
 }
 
 //void warpMasks(…) {
