@@ -15,7 +15,7 @@ using namespace std;
 void Homography(vector<Mat> Images, vector<Mat> transforms);
 void FindOutputLimits(vector<Mat> Images, vector<Mat> transforms, int &xMin, int &xMax, int &yMin, int &yMax);
 void warpMasks(vector<Mat> Images, vector<Mat> masks_warped, vector<Mat> transforms, Mat panorama);
-//void warpImages(…);
+void warpImages(vector<Mat> Images, vector<Mat> masks_warped, vector<Mat> transforms, Mat panorama);
 //void BlendImages(…);
 
 int main()
@@ -77,7 +77,7 @@ int main()
     warpMasks(Images, masks_warped, transforms, panorama);
 
     // 8. Warp the images
-//    warpImages(Images, masks_warped, transforms, panorama);
+    warpImages(Images, masks_warped, transforms, panorama);
 
     // 9. Initialize the blended panorama images
 
@@ -201,15 +201,30 @@ void FindOutputLimits(vector<Mat> Images, vector<Mat> transforms, int &xMin, int
 }
 
 void warpMasks(vector<Mat> Images, vector<Mat> masks_warped, vector<Mat> transforms, Mat panorama) {
-    vector<Mat> masks;
     for (unsigned int i = 0; i < Images.size(); i++) {
-        Mat mask;
+        // create image masks same size of each image and set values to 255
+        Mat mask(Images[i].size(), CV_8U);
+        mask.setTo(Scalar(255));
+
+        Mat out(panorama.size(), CV_8U);
+        warpPerspective(mask, out, transforms[i], panorama.size());
+
+        for (int j = i-1; j >= 0; j--) {
+            // set the non-zero pixels to zero if corresponding pixels are non-zero in previous masks
+            Mat prev_mask = masks_warped[j] != 0;
+            out = prev_mask & out; // TODO: confirm correctness
+        }
+
+        masks_warped.push_back(out);
+        imshow("warp mask", out);
+        waitKey(0);
+        destroyWindow("warp mask");
     }
 }
 
-//void warpImages(…) {
+void warpImages(vector<Mat> Images, vector<Mat> masks_warped, vector<Mat> transforms, Mat panorama) {
 
-//}
+}
 
 //void BlendImages(…) {
 
