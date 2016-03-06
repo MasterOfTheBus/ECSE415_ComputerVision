@@ -13,8 +13,8 @@ using namespace std;
 
 // Functions prototypes
 void Homography(vector<Mat> Images, vector<Mat> transforms);
-void FindOutputLimits(vector<Mat> Images, vector<Mat> transforms, int xMin, int xMax, int yMin, int yMax);
-//void warpMasks(…);
+void FindOutputLimits(vector<Mat> Images, vector<Mat> transforms, int &xMin, int &xMax, int &yMin, int &yMax);
+void warpMasks(vector<Mat> Images, vector<Mat> masks_warped, vector<Mat> transforms, Mat panorama);
 //void warpImages(…);
 //void BlendImages(…);
 
@@ -64,16 +64,17 @@ int main()
     int width = xMax - xMin + 1;
     int height = yMax - yMin + 1;
 
-    cout << xMax << ", " << xMin << ", " << yMax << ", " << yMin << endl;
+    cout << "xMin: " << xMin << ", xMax: " << xMax << ", yMin: " << yMin << ", yMax: " << yMax << endl;
     cout << width << ", " << height << endl;
 
     // 5. Initialize the panorama image
     Mat panorama = Mat(height, width, CV_64F);
 
     // 6. Initialize warped mask images
+    vector<Mat> masks_warped;
 
     // 7. Warp the mask images
-//    warpMasks(Images, masks_warped, transforms, panorama);
+    warpMasks(Images, masks_warped, transforms, panorama);
 
     // 8. Warp the images
 //    warpImages(Images, masks_warped, transforms, panorama);
@@ -126,72 +127,85 @@ void Homography(vector<Mat> Images, vector<Mat> transforms) {
 
         vector<Point2d> matchedPointsPrev;
         vector<Point2d> matchedPointsCurr;
-        for (unsigned int i = 0; i < matchResults.size(); i++) {
-            matchedPointsPrev.push_back(Point2d(keyPointsPrev[i].pt.x, keyPointsPrev[i].pt.y));
-            matchedPointsCurr.push_back(Point2d(keyPointsCurr[i].pt.x, keyPointsCurr[i].pt.y));
+        for (unsigned int j = 0; j < matchResults.size(); j++) {
+            matchedPointsPrev.push_back(Point2d(keyPointsPrev[j].pt.x, keyPointsPrev[j].pt.y));
+            matchedPointsCurr.push_back(Point2d(keyPointsCurr[j].pt.x, keyPointsCurr[j].pt.y));
         }
 
         // estimate transform between images i and i-1
         Mat T = findHomography(matchedPointsCurr, matchedPointsPrev, CV_RANSAC);
 
         // compute transform to the ref
-        transforms[i] = T * transforms[i-1];
+        transforms[i] = transforms[i-1] * T;
     }
 }
 
-void FindOutputLimits(vector<Mat> Images, vector<Mat> transforms, int xMin, int xMax, int yMin, int yMax) {
-    // get the corners of the first image
-    int height = Images[0].size().height;
-    int width = Images[0].size().width;
-
-    // create the corners
-    vector<Mat> corners;
-    Mat corner = Mat::zeros(3, 1, CV_64F);
-    corner.at<float>(2, 0) = 1;
-    corners.push_back(corner);
-    corner.at<float>(1, 0) = height - 1;
-    corners.push_back(corner);
-    corner.at<float>(0,0) = width - 1;
-    corners.push_back(corner);
-    corner.at<float>(1,0) = 0;
-    corners.push_back(corner);
-
-    cout << "Finding min and max corners" << endl;
-
-    // project and find the min and max
+void FindOutputLimits(vector<Mat> Images, vector<Mat> transforms, int &xMin, int &xMax, int &yMin, int &yMax) {
+    // for each image project the corners and find the min/max corner coords
     xMin = numeric_limits<int>::max();
     xMax = numeric_limits<int>::min();
     yMin = numeric_limits<int>::max();
     yMax = numeric_limits<int>::min();
-    for (unsigned int i = 0; i < transforms.size(); i++) {
+
+    for (unsigned int i = 0; i < Images.size(); i++) {
+        Mat projected;
+        vector<Mat> corners;
+        Size s = Images[i].size();
+
+        // top left
+        Mat corner = Mat::zeros(3, 1, CV_64F);
+        corner.at<double>(2,0) = 1;
+        corners.push_back(corner);
+        // bottom left
+        Mat corner2 = Mat::zeros(3, 1, CV_64F);
+        corner2.at<double>(1,0) = s.height - 1;
+        corner2.at<double>(2,0) = 1;
+        corners.push_back(corner2);
+        // top right
+        Mat corner4 = Mat::zeros(3, 1, CV_64F);
+        corner4.at<double>(0,0) = s.width - 1;
+        corner4.at<double>(2,0) = 1;
+        corners.push_back(corner4);
+        // bottom right
+        Mat corner3 = Mat::ones(3, 1, CV_64F);
+        corner3.at<double>(0,0) = s.width - 1;
+        corner3.at<double>(1,0) = s.height - 1;
+        corners.push_back(corner3);
+
         for (unsigned int j = 0; j < corners.size(); j++) {
-            Mat projected = transforms[i] * corners[j];
-            if (projected.at<float>(0,0) < xMin && projected.at<float>(1,0) < yMin) {
-                xMin = projected.at<float>(0,0);
-                yMin = projected.at<float>(1,0);
+            projected = transforms[i] * corners[j];
+
+            // compare for min/max
+            if ((int)projected.at<double>(0, 0) < xMin) {
+                xMin = (int)projected.at<double>(0, 0);
             }
-            if (projected.at<float>(0,0) > xMax && projected.at<float>(1,0) > yMax) {
-                xMax = projected.at<float>(0,0);
-                yMax = projected.at<float>(1,0);
+            if ((int)projected.at<double>(0, 0) > xMax) {
+                xMax = (int)projected.at<double>(0, 0);
+            }
+            if ((int)projected.at<double>(1, 0) < yMin) {
+                yMin = (int)projected.at<double>(1, 0);
+            }
+            if ((int)projected.at<double>(1, 0) > yMax) {
+                yMax = (int)projected.at<double>(1, 0);
             }
         }
     }
 
-    cout << "transforms" << endl;
-
-    // translate all images so that xMin and yMin become zero
+    // Translate all images so that xMin and yMin become zero
     Mat translation = Mat::eye(3, 3, CV_64F);
-    translation.at<float>(0,2) = -1 * xMin;
-    translation.at<float>(1,2) = -1 * yMin;
-
+    translation.at<double>(0, 2) = -1 * xMin;
+    translation.at<double>(1, 2) = -1 * yMin;
     for (unsigned int i = 0; i < transforms.size(); i++) {
         transforms[i] = translation * transforms[i];
     }
 }
 
-//void warpMasks(…) {
-
-//}
+void warpMasks(vector<Mat> Images, vector<Mat> masks_warped, vector<Mat> transforms, Mat panorama) {
+    vector<Mat> masks;
+    for (unsigned int i = 0; i < Images.size(); i++) {
+        Mat mask;
+    }
+}
 
 //void warpImages(…) {
 
