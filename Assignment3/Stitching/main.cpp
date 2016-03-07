@@ -210,20 +210,48 @@ void warpMasks(vector<Mat> Images, vector<Mat> masks_warped, vector<Mat> transfo
         warpPerspective(mask, out, transforms[i], panorama.size());
 
         for (int j = i-1; j >= 0; j--) {
-            // set the non-zero pixels to zero if corresponding pixels are non-zero in previous masks
-            Mat prev_mask = masks_warped[j] != 0;
-            out = prev_mask & out; // TODO: confirm correctness
+//            out = (out == (-1 * (masks_warped[j] - 255)));
         }
 
-        masks_warped.push_back(out);
+        Mat test = Mat::eye(panorama.size(),CV_8U);
+        test *= 255;
+        masks_warped.push_back(test/*out*/);
+
         imshow("warp mask", out);
         waitKey(0);
         destroyWindow("warp mask");
     }
+//    Mat test(3, 3, CV_8U);
+//    test.setTo(Scalar(255));
+
+//    Mat testMask = Mat::zeros(3, 3, CV_8U);
+//    testMask.at<unsigned short>(0, 0) = 255;
+//    testMask.at<unsigned short>(1, 1) = 255;
+
+//    testMask = -1 * (testMask - 255);
+
+//    Mat testResult = (test == testMask);
+//    cout << test << endl << testMask << endl << endl;
+//    cout << testResult << endl;
 }
 
 void warpImages(vector<Mat> Images, vector<Mat> masks_warped, vector<Mat> transforms, Mat panorama) {
+    for (unsigned int i = 0; i < Images.size(); i++) {
+        // warp image
+        Mat out(panorama.size(), Images[i].type());
+        warpPerspective(Images[i], out, transforms[i], panorama.size());
 
+        cout << "warped" << endl;
+
+        // copy non-zero pixels using the mask
+        out.copyTo(panorama, masks_warped[i]);
+    }
+
+    cout << "displaying panorama" << endl;
+
+    imshow("panorama", panorama);
+    waitKey(0);
+    destroyWindow("panorama");
 }
 
 //void BlendImages(…) {
