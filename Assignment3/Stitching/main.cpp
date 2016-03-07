@@ -14,8 +14,8 @@ using namespace std;
 // Functions prototypes
 void Homography(vector<Mat> Images, vector<Mat> transforms);
 void FindOutputLimits(vector<Mat> Images, vector<Mat> transforms, int &xMin, int &xMax, int &yMin, int &yMax);
-void warpMasks(vector<Mat> Images, vector<Mat> masks_warped, vector<Mat> transforms, Mat panorama);
-void warpImages(vector<Mat> Images, vector<Mat> masks_warped, vector<Mat> transforms, Mat panorama);
+void warpMasks(vector<Mat> Images, vector<Mat> &masks_warped, vector<Mat> transforms, Mat &panorama);
+void warpImages(vector<Mat> Images, vector<Mat> &masks_warped, vector<Mat> transforms, Mat &panorama);
 //void BlendImages(…);
 
 int main()
@@ -200,7 +200,7 @@ void FindOutputLimits(vector<Mat> Images, vector<Mat> transforms, int &xMin, int
     }
 }
 
-void warpMasks(vector<Mat> Images, vector<Mat> masks_warped, vector<Mat> transforms, Mat panorama) {
+void warpMasks(vector<Mat> Images, vector<Mat> &masks_warped, vector<Mat> transforms, Mat &panorama) {
     for (unsigned int i = 0; i < Images.size(); i++) {
         // create image masks same size of each image and set values to 255
         Mat mask(Images[i].size(), CV_8U);
@@ -210,38 +210,28 @@ void warpMasks(vector<Mat> Images, vector<Mat> masks_warped, vector<Mat> transfo
         warpPerspective(mask, out, transforms[i], panorama.size());
 
         for (int j = i-1; j >= 0; j--) {
-//            out = (out == (-1 * (masks_warped[j] - 255)));
+            out = (out == (-1 * (masks_warped[j] - 255)));
         }
 
-        Mat test = Mat::eye(panorama.size(),CV_8U);
-        test *= 255;
-        masks_warped.push_back(test/*out*/);
+        masks_warped.push_back(out);
 
         imshow("warp mask", out);
         waitKey(0);
         destroyWindow("warp mask");
     }
-//    Mat test(3, 3, CV_8U);
-//    test.setTo(Scalar(255));
-
-//    Mat testMask = Mat::zeros(3, 3, CV_8U);
-//    testMask.at<unsigned short>(0, 0) = 255;
-//    testMask.at<unsigned short>(1, 1) = 255;
-
-//    testMask = -1 * (testMask - 255);
-
-//    Mat testResult = (test == testMask);
-//    cout << test << endl << testMask << endl << endl;
-//    cout << testResult << endl;
 }
 
-void warpImages(vector<Mat> Images, vector<Mat> masks_warped, vector<Mat> transforms, Mat panorama) {
+void warpImages(vector<Mat> Images, vector<Mat> &masks_warped, vector<Mat> transforms, Mat &panorama) {
     for (unsigned int i = 0; i < Images.size(); i++) {
         // warp image
         Mat out(panorama.size(), Images[i].type());
         warpPerspective(Images[i], out, transforms[i], panorama.size());
 
         cout << "warped" << endl;
+
+        imshow("warp mask", masks_warped[i]);
+        waitKey(0);
+        destroyWindow("warp mask");
 
         // copy non-zero pixels using the mask
         out.copyTo(panorama, masks_warped[i]);
