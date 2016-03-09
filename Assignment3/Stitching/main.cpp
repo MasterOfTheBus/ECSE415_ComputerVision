@@ -12,8 +12,8 @@ using namespace cv;
 using namespace std;
 
 // Functions prototypes
-void Homography(vector<Mat> Images, vector<Mat> transforms);
-void FindOutputLimits(vector<Mat> Images, vector<Mat> transforms, int &xMin, int &xMax, int &yMin, int &yMax);
+void Homography(vector<Mat> Images, vector<Mat> &transforms);
+void FindOutputLimits(vector<Mat> Images, vector<Mat> &transforms, int &xMin, int &xMax, int &yMin, int &yMax);
 void warpMasks(vector<Mat> Images, vector<Mat> &masks_warped, vector<Mat> transforms, Mat &panorama);
 void warpImages(vector<Mat> Images, vector<Mat> &masks_warped, vector<Mat> transforms, Mat &panorama);
 //void BlendImages(…);
@@ -22,10 +22,11 @@ int main()
 {
     // Initialize OpenCV nonfree module
     initModule_nonfree();
+
     // Set the dir/name of each image
     const int NUM_IMAGES = 2; // 6 for the real panorama
     const string basedir = "C:\\Users\\Lazy\\Documents\\GitHub\\Computer_Vision\\Assignment3\\images";
-    const string IMG_NAMES[] = { basedir + "\\Img1.jpg", basedir + "\\Img2.jpg" };
+    const string IMG_NAMES[] = { basedir + "\\Img1_Sample.jpg", basedir + "\\Img2_Sample.jpg" };
 
     // Load the images
     vector<Mat> Images;
@@ -88,7 +89,7 @@ int main()
 }
 
 // match features in images
-void Homography(vector<Mat> Images, vector<Mat> transforms) {
+void Homography(vector<Mat> Images, vector<Mat> &transforms) {
 
     // Create a SIFT feature detector object
     Ptr<FeatureDetector> featureDetector = FeatureDetector::create("SIFT");
@@ -97,7 +98,7 @@ void Homography(vector<Mat> Images, vector<Mat> transforms) {
     Ptr<DescriptorExtractor> descriptorExtractor = DescriptorExtractor::create("SIFT");
 
     // starting from second image, detect features and match
-    for (unsigned int i = 1; i < Images.size(); i ++) {
+    for (unsigned int i = 1; i < Images.size(); i++) {
         BFMatcher matcher;
 
         // detect key points
@@ -114,11 +115,11 @@ void Homography(vector<Mat> Images, vector<Mat> transforms) {
 
         // match the descriptors
         vector<DMatch> matchResults;
-        matcher.match(descriptorPrev, descriptorCurr, matchResults);
+        matcher.match(descriptorCurr, descriptorPrev, matchResults);
 
         // display the matches
         Mat outIm;
-        drawMatches(Images[i-1], keyPointsPrev, Images[i], keyPointsCurr, matchResults, outIm, DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+        drawMatches(Images[i], keyPointsCurr, Images[i-1], keyPointsPrev, matchResults, outIm, DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
         stringstream ss;
         ss << "Matched Images: " << i-1 << ", " << i;
         imshow(ss.str(), outIm);
@@ -137,17 +138,19 @@ void Homography(vector<Mat> Images, vector<Mat> transforms) {
 
         // compute transform to the ref
         transforms[i] = transforms[i-1] * T;
+
+        cout << "transform[" << i << "]\n" << transforms[i] << endl;
     }
 }
 
-void FindOutputLimits(vector<Mat> Images, vector<Mat> transforms, int &xMin, int &xMax, int &yMin, int &yMax) {
+void FindOutputLimits(vector<Mat> Images, vector<Mat> &transforms, int &xMin, int &xMax, int &yMin, int &yMax) {
     // for each image project the corners and find the min/max corner coords
     xMin = numeric_limits<int>::max();
     xMax = numeric_limits<int>::min();
     yMin = numeric_limits<int>::max();
     yMax = numeric_limits<int>::min();
 
-    for (unsigned int i = 0; i < Images.size(); i++) {
+    for (unsigned int i = 0; i < transforms.size(); i++) {
         Mat projected;
         vector<Mat> corners;
         Size s = Images[i].size();
@@ -173,6 +176,7 @@ void FindOutputLimits(vector<Mat> Images, vector<Mat> transforms, int &xMin, int
         corners.push_back(corner3);
 
         for (unsigned int j = 0; j < corners.size(); j++) {
+            cout << "transform[" << i << "]\n" << transforms[i] << endl;
             projected = transforms[i] * corners[j];
 
             // compare for min/max
@@ -195,6 +199,7 @@ void FindOutputLimits(vector<Mat> Images, vector<Mat> transforms, int &xMin, int
     Mat translation = Mat::eye(3, 3, CV_64F);
     translation.at<double>(0, 2) = -1 * xMin;
     translation.at<double>(1, 2) = -1 * yMin;
+    cout << "\ntrnslation matrix\n" << translation << endl << endl;
     for (unsigned int i = 0; i < transforms.size(); i++) {
         transforms[i] = translation * transforms[i];
     }
@@ -209,15 +214,11 @@ void warpMasks(vector<Mat> Images, vector<Mat> &masks_warped, vector<Mat> transf
         Mat out(panorama.size(), CV_8U);
         warpPerspective(mask, out, transforms[i], panorama.size());
 
-        for (int j = i-1; j >= 0; j--) {
-            out = (out == (-1 * (masks_warped[j] - 255)));
-        }
-
-        masks_warped.push_back(out);
-
         imshow("warp mask", out);
         waitKey(0);
         destroyWindow("warp mask");
+
+        masks_warped.push_back(out);
     }
 }
 
@@ -225,13 +226,7 @@ void warpImages(vector<Mat> Images, vector<Mat> &masks_warped, vector<Mat> trans
     for (unsigned int i = 0; i < Images.size(); i++) {
         // warp image
         Mat out(panorama.size(), Images[i].type());
-        warpPerspective(Images[i], out, transforms[i], panorama.size());
-
-        cout << "warped" << endl;
-
-        imshow("warp mask", masks_warped[i]);
-        waitKey(0);
-        destroyWindow("warp mask");
+        warpPerspective(Images[i], out, transforms[i], panorama.size(), 1);
 
         // copy non-zero pixels using the mask
         out.copyTo(panorama, masks_warped[i]);
