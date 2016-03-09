@@ -26,7 +26,7 @@ int main()
     // Set the dir/name of each image
     const int NUM_IMAGES = 2; // 6 for the real panorama
     const string basedir = "C:\\Users\\Lazy\\Documents\\GitHub\\Computer_Vision\\Assignment3\\images";
-    const string IMG_NAMES[] = { basedir + "\\Img1_Sample.jpg", basedir + "\\Img2_Sample.jpg" };
+    const string IMG_NAMES[] = { basedir + "\\Img1.jpg", basedir + "\\Img2.jpg" };
 
     // Load the images
     vector<Mat> Images;
@@ -97,10 +97,10 @@ void Homography(vector<Mat> Images, vector<Mat> &transforms) {
     // Create a SIFT descriptor extractor object
     Ptr<DescriptorExtractor> descriptorExtractor = DescriptorExtractor::create("SIFT");
 
+    BFMatcher matcher;
+
     // starting from second image, detect features and match
     for (unsigned int i = 1; i < Images.size(); i++) {
-        BFMatcher matcher;
-
         // detect key points
         vector<KeyPoint> keyPointsPrev;
         vector<KeyPoint> keyPointsCurr;
@@ -129,8 +129,8 @@ void Homography(vector<Mat> Images, vector<Mat> &transforms) {
         vector<Point2d> matchedPointsPrev;
         vector<Point2d> matchedPointsCurr;
         for (unsigned int j = 0; j < matchResults.size(); j++) {
-            matchedPointsPrev.push_back(Point2d(keyPointsPrev[j].pt.x, keyPointsPrev[j].pt.y));
-            matchedPointsCurr.push_back(Point2d(keyPointsCurr[j].pt.x, keyPointsCurr[j].pt.y));
+            matchedPointsPrev.push_back(keyPointsPrev[matchResults[j].trainIdx].pt);
+            matchedPointsCurr.push_back(keyPointsCurr[matchResults[j].queryIdx].pt);
         }
 
         // estimate transform between images i and i-1
