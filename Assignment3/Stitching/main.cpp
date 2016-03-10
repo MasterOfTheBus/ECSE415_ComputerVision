@@ -27,6 +27,8 @@ int main()
     const int NUM_IMAGES = 6; // 6 for the real panorama
     const string basedir = "C:\\Users\\Lazy\\Documents\\GitHub\\Computer_Vision\\Assignment3\\images";
     const string IMG_NAMES[] = { basedir + "\\Img6.jpg", basedir + "\\Img5.jpg", basedir + "\\Img4.jpg", basedir + "\\Img3.jpg", basedir + "\\Img2.jpg", basedir + "\\Img1.jpg" };
+//    const string IMG_NAMES[] = {basedir + "\\Img1_sample.jpg", basedir + "\\Img2_sample.jpg", basedir + "\\Img3_sample.jpg"};
+    //    const string IMG_NAMES[] = {basedir + "\\a_3.jpg", basedir + "\\a_2.jpg", basedir + "\\a_1.jpg"};
 
     // Load the images
     vector<Mat> Images;
@@ -129,22 +131,22 @@ void Homography(vector<Mat> Images, vector<Mat> &transforms) {
 
         // match the descriptors
         vector<DMatch> matchResults;
-        matcher.match(descriptorCurr, descriptorPrev, matchResults);
+        matcher.match(descriptorPrev, descriptorCurr, matchResults);
 
-        // display the matches
-        Mat outIm;
-        drawMatches(Images[i], keyPointsCurr, Images[i-1], keyPointsPrev, matchResults, outIm, DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
-        stringstream ss;
-        ss << "Matched Images: " << i-1 << ", " << i;
-        imshow(ss.str(), outIm);
-        waitKey(0);
-        destroyWindow(ss.str());
+//        // display the matches
+//        Mat outIm;
+//        drawMatches(Images[i], keyPointsCurr, Images[i-1], keyPointsPrev, matchResults, outIm, DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+//        stringstream ss;
+//        ss << "Matched Images: " << i-1 << ", " << i;
+//        imshow(ss.str(), outIm);
+//        waitKey(0);
+//        destroyWindow(ss.str());
 
         vector<Point2d> matchedPointsPrev;
         vector<Point2d> matchedPointsCurr;
         for (unsigned int j = 0; j < matchResults.size(); j++) {
-            matchedPointsPrev.push_back(keyPointsPrev[matchResults[j].trainIdx].pt);
-            matchedPointsCurr.push_back(keyPointsCurr[matchResults[j].queryIdx].pt);
+            matchedPointsPrev.push_back(keyPointsPrev[matchResults[j].queryIdx].pt);
+            matchedPointsCurr.push_back(keyPointsCurr[matchResults[j].trainIdx].pt);
         }
 
         // estimate transform between images i and i-1
