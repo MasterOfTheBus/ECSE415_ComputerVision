@@ -16,7 +16,7 @@ void Homography(vector<Mat> Images, vector<Mat> &transforms);
 void FindOutputLimits(vector<Mat> Images, vector<Mat> &transforms, int &xMin, int &xMax, int &yMin, int &yMax);
 void warpMasks(vector<Mat> Images, vector<Mat> &masks_warped, vector<Mat> transforms, Mat &panorama);
 void warpImages(vector<Mat> Images, vector<Mat> &masks_warped, vector<Mat> transforms, Mat &panorama);
-//void BlendImages(…);
+void BlendImages(vector<Mat> Images, Mat &pano_feather, Mat &pano_multiband, vector<Mat> masks_warped, vector<Mat> transforms, Size pano_size);
 
 int main()
 {
@@ -24,9 +24,9 @@ int main()
     initModule_nonfree();
 
     // Set the dir/name of each image
-    const int NUM_IMAGES = 2; // 6 for the real panorama
+    const int NUM_IMAGES = 6; // 6 for the real panorama
     const string basedir = "C:\\Users\\Lazy\\Documents\\GitHub\\Computer_Vision\\Assignment3\\images";
-    const string IMG_NAMES[] = { basedir + "\\Img1.jpg", basedir + "\\Img2.jpg" };
+    const string IMG_NAMES[] = { basedir + "\\Img6.jpg", basedir + "\\Img5.jpg", basedir + "\\Img4.jpg", basedir + "\\Img3.jpg", basedir + "\\Img2.jpg", basedir + "\\Img1.jpg" };
 
     // Load the images
     vector<Mat> Images;
@@ -80,10 +80,24 @@ int main()
     // 8. Warp the images
     warpImages(Images, masks_warped, transforms, panorama);
 
+    imshow("panorama", panorama);
+    waitKey(0);
+    destroyWindow("panorama");
+
     // 9. Initialize the blended panorama images
+    Mat pano_feather(panorama.size(), CV_64F);
+    Mat pano_multiband(panorama.size(), CV_64F);
 
     // 10. Blending
-//    BlendImages(Images, pano_feather, pano_multiband, masks_warped, transforms);
+    BlendImages(Images, pano_feather, pano_multiband, masks_warped, transforms, panorama.size());
+
+    imshow("feather blended", pano_feather);
+    waitKey(0);
+    destroyWindow("feather blended");
+
+    imshow("multiband blended", pano_multiband);
+    waitKey(0);
+    destroyWindow("mutliband blended");
 
     return 0;
 }
@@ -138,8 +152,6 @@ void Homography(vector<Mat> Images, vector<Mat> &transforms) {
 
         // compute transform to the ref
         transforms[i] = transforms[i-1] * T;
-
-        cout << "transform[" << i << "]\n" << transforms[i] << endl;
     }
 }
 
@@ -176,7 +188,6 @@ void FindOutputLimits(vector<Mat> Images, vector<Mat> &transforms, int &xMin, in
         corners.push_back(corner3);
 
         for (unsigned int j = 0; j < corners.size(); j++) {
-            cout << "transform[" << i << "]\n" << transforms[i] << endl;
             projected = transforms[i] * corners[j];
 
             // compare for min/max
@@ -199,7 +210,6 @@ void FindOutputLimits(vector<Mat> Images, vector<Mat> &transforms, int &xMin, in
     Mat translation = Mat::eye(3, 3, CV_64F);
     translation.at<double>(0, 2) = -1 * xMin;
     translation.at<double>(1, 2) = -1 * yMin;
-    cout << "\ntrnslation matrix\n" << translation << endl << endl;
     for (unsigned int i = 0; i < transforms.size(); i++) {
         transforms[i] = translation * transforms[i];
     }
@@ -232,13 +242,34 @@ void warpImages(vector<Mat> Images, vector<Mat> &masks_warped, vector<Mat> trans
         out.copyTo(panorama, masks_warped[i]);
     }
 
-    cout << "displaying panorama" << endl;
+//    cout << "displaying panorama" << endl;
 
-    imshow("panorama", panorama);
-    waitKey(0);
-    destroyWindow("panorama");
+//    imshow("panorama", panorama);
+//    waitKey(0);
+//    destroyWindow("panorama");
 }
 
-//void BlendImages(…) {
+void BlendImages(vector<Mat> Images, Mat &pano_feather, Mat &pano_multiband, vector<Mat> masks_warped, vector<Mat> transforms, Size pano_size) {
+    // Create the feather and multiband blender objects
+    detail::FeatherBlender feather;
+    detail::MultiBandBlender multiband;
 
-//}
+    feather.prepare(Rect(0, 0, pano_feather.cols, pano_feather.rows));
+    multiband.prepare(Rect(0, 0, pano_multiband.cols, pano_multiband.rows));
+
+    // feed images to blenders
+    for (unsigned int i = 0; i < Images.size(); i++) {
+        Mat warped(pano_size, Images[i].type());
+        warpPerspective(Images[i], warped, transforms[i], pano_size, 1);
+        warped.convertTo(warped, CV_16S);
+        feather.feed(warped, masks_warped[i], Point(0, 0));
+        multiband.feed(warped, masks_warped[i], Point(0, 0));
+    }
+
+    // blend
+    Mat empty;
+    feather.blend(pano_feather, empty);
+    pano_feather.convertTo(pano_feather, CV_8U);
+    multiband.blend(pano_multiband, empty);
+    pano_multiband.convertTo(pano_multiband, CV_8U);
+}
