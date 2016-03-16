@@ -8,6 +8,8 @@
 #include <vector>
 #include <limits>
 
+#define REPORT_OUTPUT 0
+
 using namespace cv;
 using namespace std;
 
@@ -26,9 +28,16 @@ int main()
     // Set the dir/name of each image
     const int NUM_IMAGES = 6; // 6 for the real panorama
     const string basedir = "C:\\Users\\Lazy\\Documents\\GitHub\\Computer_Vision\\Assignment3\\images";
-    const string IMG_NAMES[] = { basedir + "\\Img6.jpg", basedir + "\\Img5.jpg", basedir + "\\Img4.jpg", basedir + "\\Img3.jpg", basedir + "\\Img2.jpg", basedir + "\\Img1.jpg" };
-//    const string IMG_NAMES[] = {basedir + "\\Img1_sample.jpg", basedir + "\\Img2_sample.jpg", basedir + "\\Img3_sample.jpg"};
-    //    const string IMG_NAMES[] = {basedir + "\\a_3.jpg", basedir + "\\a_2.jpg", basedir + "\\a_1.jpg"};
+
+    // Don't Work because of the perspective in the images
+//    const string IMG_NAMES[] = { basedir + "\\Img1.jpg", basedir + "\\Img2.jpg", basedir + "\\Img3.jpg", basedir + "\\Img4.jpg", basedir + "\\Img5.jpg", basedir + "\\Img6.jpg" };
+//    const string IMG_NAMES[] = {basedir + "\\photo(1).jpg", basedir + "\\photo(2).jpg", basedir + "\\photo(3).jpg", basedir + "\\photo(4).jpg", basedir + "\\photo(5).jpg", basedir + "\\photo(6).jpg"};
+//    const string IMG_NAMES[] = {basedir + "\\photo (1).jpg", basedir + "\\photo (2).jpg", basedir + "\\photo (3).jpg", basedir + "\\photo (4).jpg", basedir + "\\photo (5).jpg", basedir + "\\photo (6).jpg"};
+
+    // Work
+//        const string IMG_NAMES[] = {basedir + "\\sample1.jpg", basedir + "\\sample2.jpg", basedir + "\\sample3.jpg", basedir + "\\sample4.jpg", basedir + "\\sample5.jpg", basedir + "\\sample6.jpg" };
+    const string IMG_NAMES[] = {basedir +  "\\image.jpg", basedir +  "\\image[1].jpg", basedir +  "\\image[2].jpg", basedir +  "\\image[3].jpg", basedir +  "\\image[4].jpg", basedir +  "\\image[5].jpg"};
+//    const string IMG_NAMES[] = {basedir +  "\\image.jpg", basedir +  "\\image[5].jpg", basedir +  "\\image[4].jpg", basedir +  "\\image[3].jpg", basedir +  "\\image[2].jpg", basedir +  "\\image[1].jpg"};
 
     // Load the images
     vector<Mat> Images;
@@ -82,6 +91,10 @@ int main()
     // 8. Warp the images
     warpImages(Images, masks_warped, transforms, panorama);
 
+    if (width > 2000 && height > 700) {
+        resize(panorama, panorama, Size(), 0.5, 0.5);
+    }
+
     imshow("panorama", panorama);
     waitKey(0);
     destroyWindow("panorama");
@@ -92,6 +105,11 @@ int main()
 
     // 10. Blending
     BlendImages(Images, pano_feather, pano_multiband, masks_warped, transforms, panorama.size());
+
+    if (width > 2000 && height > 700) {
+        resize(pano_feather, pano_feather, Size(), 0.5, 0.5);
+        resize(pano_multiband, pano_multiband, Size(), 0.5, 0.5);
+    }
 
     imshow("feather blended", pano_feather);
     waitKey(0);
@@ -133,27 +151,89 @@ void Homography(vector<Mat> Images, vector<Mat> &transforms) {
         vector<DMatch> matchResults;
         matcher.match(descriptorPrev, descriptorCurr, matchResults);
 
-//        // display the matches
+        // display the matches
 //        Mat outIm;
-//        drawMatches(Images[i], keyPointsCurr, Images[i-1], keyPointsPrev, matchResults, outIm, DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+//        drawMatches(Images[i-1], keyPointsPrev, Images[i], keyPointsCurr, matchResults, outIm, DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
 //        stringstream ss;
 //        ss << "Matched Images: " << i-1 << ", " << i;
 //        imshow(ss.str(), outIm);
 //        waitKey(0);
 //        destroyWindow(ss.str());
 
+        double min_dist = numeric_limits<double>::max();
+        double max_dist = 0;
+        for(unsigned int j = 0; j < matchResults.size(); j++ ) {
+            double dist = matchResults[j].distance;
+            if( dist < min_dist ) min_dist = dist;
+            if( dist > max_dist ) max_dist = dist;
+        }
+
         vector<Point2d> matchedPointsPrev;
         vector<Point2d> matchedPointsCurr;
+        vector<DMatch> drawMatch;
         for (unsigned int j = 0; j < matchResults.size(); j++) {
-            matchedPointsPrev.push_back(keyPointsPrev[matchResults[j].queryIdx].pt);
-            matchedPointsCurr.push_back(keyPointsCurr[matchResults[j].trainIdx].pt);
+            // drop matches that are too far
+            if (matchResults[j].distance < min_dist * 2.5) {
+                drawMatch.push_back(matchResults[j]);
+                matchedPointsPrev.push_back(keyPointsPrev[matchResults[j].queryIdx].pt);
+                matchedPointsCurr.push_back(keyPointsCurr[matchResults[j].trainIdx].pt);
+            }
         }
+
+        // display the matches
+        Mat outIm;
+        drawMatches(Images[i-1], keyPointsPrev, Images[i], keyPointsCurr, drawMatch, outIm, DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+        stringstream ss;
+        ss << "Matched Images: " << i-1 << ", " << i;
+        imshow(ss.str(), outIm);
+        waitKey(0);
+        destroyWindow(ss.str());
 
         // estimate transform between images i and i-1
         Mat T = findHomography(matchedPointsCurr, matchedPointsPrev, CV_RANSAC);
 
         // compute transform to the ref
         transforms[i] = transforms[i-1] * T;
+
+        if (i == Images.size() - 1) {
+            cout << "transforms[" << i << "]\n" << transforms[i] << endl;
+#if REPORT_OUTPUT
+
+            // calculate the transform using the matched points
+            descriptorExtractor->compute(Images[0], keyPointsPrev, descriptorPrev);
+            descriptorExtractor->compute(Images[5], keyPointsCurr, descriptorCurr);
+            matcher.match(descriptorPrev, descriptorCurr, matchResults);
+
+            min_dist = numeric_limits<double>::max();
+            max_dist = 0;
+            for(unsigned int j = 0; j < matchResults.size(); j++ ) {
+                double dist = matchResults[j].distance;
+                if( dist < min_dist ) min_dist = dist;
+                if( dist > max_dist ) max_dist = dist;
+            }
+
+            matchedPointsPrev.clear();
+            matchedPointsCurr.clear();
+            drawMatch.clear();
+            for (unsigned int j = 0; j < matchResults.size(); j++) {
+                // drop matches that are too far
+                if (matchResults[j].distance < min_dist * 2.5) {
+                    drawMatch.push_back(matchResults[j]);
+                    matchedPointsPrev.push_back(keyPointsPrev[matchResults[j].queryIdx].pt);
+                    matchedPointsCurr.push_back(keyPointsCurr[matchResults[j].trainIdx].pt);
+                }
+            }
+
+            // estimate transform between images i and i-1
+            T = findHomography(matchedPointsCurr, matchedPointsPrev, CV_RANSAC);
+
+            // compute transform to the ref
+            Mat T_disp = transforms[0] * T;
+
+            cout << "T: " << T_disp << endl;
+#endif
+
+        }
     }
 }
 
@@ -191,6 +271,11 @@ void FindOutputLimits(vector<Mat> Images, vector<Mat> &transforms, int &xMin, in
 
         for (unsigned int j = 0; j < corners.size(); j++) {
             projected = transforms[i] * corners[j];
+            // normalize the vector so that z coordinate is 1
+            double normFactor = 1 / projected.at<double>(2, 0);
+            projected = normFactor * projected;
+
+//            cout << "projected" << endl << projected << endl;
 
             // compare for min/max
             if ((int)projected.at<double>(0, 0) < xMin) {
@@ -212,6 +297,8 @@ void FindOutputLimits(vector<Mat> Images, vector<Mat> &transforms, int &xMin, in
     Mat translation = Mat::eye(3, 3, CV_64F);
     translation.at<double>(0, 2) = -1 * xMin;
     translation.at<double>(1, 2) = -1 * yMin;
+    cout << "translation:\n" << translation << endl;
+
     for (unsigned int i = 0; i < transforms.size(); i++) {
         transforms[i] = translation * transforms[i];
     }
@@ -226,9 +313,11 @@ void warpMasks(vector<Mat> Images, vector<Mat> &masks_warped, vector<Mat> transf
         Mat out(panorama.size(), CV_8U);
         warpPerspective(mask, out, transforms[i], panorama.size());
 
+#if REPORT_OUTPUT
         imshow("warp mask", out);
         waitKey(0);
         destroyWindow("warp mask");
+#endif
 
         masks_warped.push_back(out);
     }
@@ -240,15 +329,15 @@ void warpImages(vector<Mat> Images, vector<Mat> &masks_warped, vector<Mat> trans
         Mat out(panorama.size(), Images[i].type());
         warpPerspective(Images[i], out, transforms[i], panorama.size(), 1);
 
+#if REPORT_OUTPUT
+        imshow("warp image", out);
+        waitKey(0);
+        destroyWindow("warp image");
+#endif
+
         // copy non-zero pixels using the mask
         out.copyTo(panorama, masks_warped[i]);
     }
-
-//    cout << "displaying panorama" << endl;
-
-//    imshow("panorama", panorama);
-//    waitKey(0);
-//    destroyWindow("panorama");
 }
 
 void BlendImages(vector<Mat> Images, Mat &pano_feather, Mat &pano_multiband, vector<Mat> masks_warped, vector<Mat> transforms, Size pano_size) {
@@ -262,7 +351,7 @@ void BlendImages(vector<Mat> Images, Mat &pano_feather, Mat &pano_multiband, vec
     // feed images to blenders
     for (unsigned int i = 0; i < Images.size(); i++) {
         Mat warped(pano_size, Images[i].type());
-        warpPerspective(Images[i], warped, transforms[i], pano_size, 1);
+        warpPerspective(Images[i], warped, transforms[i], pano_size, 1, BORDER_REPLICATE);
         warped.convertTo(warped, CV_16S);
         feather.feed(warped, masks_warped[i], Point(0, 0));
         multiband.feed(warped, masks_warped[i], Point(0, 0));
