@@ -25,48 +25,52 @@ int main()
                          base_dir + "b4nature_animals_land009_groundtruth.png",
                          base_dir + "cheeky_penguin_groundtruth.png"};
 
-    string rect_file = base_dir + "rect.txt";
+    string rect_files[] = {base_dir + "100_0109_rect.txt",
+                           base_dir + "b4nature_animals_land009_rect.txt",
+                           base_dir + "cheeky_penguin_rect.txt"};
 
-    // load the input image
-    Mat img = imread(image_names[0], CV_LOAD_IMAGE_COLOR);
+    for (int index = 0; index < 3; index++) {
+        // load the input image
+        Mat img = imread(image_names[index], CV_LOAD_IMAGE_COLOR);
 
-    // load the ground truth image
-    Mat gtmask = imread(gt_names[0], CV_LOAD_IMAGE_COLOR);
+        // load the ground truth image
+        //    Mat gtmask = imread(gt_names[0], CV_LOAD_IMAGE_COLOR);
 
-    // load the rect values from file
-    FILE* file = fopen(rect_file.c_str(), "r");
+        // load the rect values from file
+        FILE* file = fopen(rect_files[index].c_str(), "r");
 
-    if (file != NULL) {
-        int rect_points[4];
-        char* line = (char*)malloc(100);
-        if (fgets(line, 100, file) != NULL) {
-            rect_points[0] = atoi(strtok(line, " \t"));
-            for (int i = 1; i < 4; i++) {
-                rect_points[i] = atoi(strtok(NULL, " \t"));
+        if (file != NULL) {
+            int rect_points[4];
+            char* line = (char*)malloc(100);
+            if (fgets(line, 100, file) != NULL) {
+                rect_points[0] = atoi(strtok(line, " \t"));
+                for (int i = 1; i < 4; i++) {
+                    rect_points[i] = atoi(strtok(NULL, " \t"));
+                }
+
+                Mat kmeans_mask = calc_kmeans(img, rect_points);
+                Mat out_img = maskImg(img, kmeans_mask);
+                // display the results
+                imshow("kmeans", out_img);
+                waitKey(0);
+                destroyWindow("kmeans");
+
+                Mat gmm_mask = calc_gmm(img, rect_points);
+                out_img = maskImg(img, gmm_mask);
+                // display the results
+                imshow("gmm", out_img);
+                waitKey(0);
+                destroyWindow("gmm");
+
+                Mat graphCut_mask = calc_graphCut(img, rect_points);
+                out_img = maskImg(img, graphCut_mask);
+                // display the results
+                imshow("graph cut", out_img);
+                waitKey(0);
+                destroyWindow("graph cut");
             }
 
-            Mat kmeans_mask = calc_kmeans(img, rect_points);
-            Mat out_img = maskImg(img, kmeans_mask);
-            // display the results
-            imshow("kmeans", out_img);
-            waitKey(0);
-            destroyWindow("kmeans");
-
-            Mat gmm_mask = calc_gmm(img, rect_points);
-            out_img = maskImg(img, gmm_mask);
-            // display the results
-            imshow("gmm", out_img);
-            waitKey(0);
-            destroyWindow("gmm");
-
-            Mat graphCut_mask = calc_graphCut(img, rect_points);
-            out_img = maskImg(img, graphCut_mask);
-            // display the results
-            imshow("graph cut", out_img);
-            waitKey(0);
-            destroyWindow("graph cut");
         }
-
     }
 
     return 0;
@@ -83,26 +87,10 @@ Mat calc_kmeans(Mat img, int rect[]) {
     Rect_<double> user_rect(rect[0], rect[1], rect[2], rect[3]);
 
     // feature matrix
-    Mat feature_mat = img.reshape(1, H*W); // doesn't work?
-//    Mat feature_mat;
 #if INTENSITY
-    feature_mat = Mat::zeros(H*W, 1, CV_32F);
     cvtColor(img, img, CV_RGB2GRAY);
-    for (int col = 0; col < W; col++) {
-        for (int row = 0; row < H; row++) {
-            feature_mat.at<float>(col*H+row,0) = img.at<float>(row, col);
-        }
-    }
-#else
-//    feature_mat = Mat::zeros(H*W, 3, CV_32F);
-//    for (int col = 0; col < W; col++) {
-//        for (int row = 0; row < H; row++) {
-//            feature_mat.at<float>(col*H+row,0) = img.at<Vec3f>(row, col)[2]; // red
-//            feature_mat.at<float>(col*H+row,1) = img.at<Vec3f>(row, col)[1]; // green
-//            feature_mat.at<float>(col*H+row,2) = img.at<Vec3f>(row, col)[0]; // blue
-//        }
-//    }
 #endif
+    Mat feature_mat = img.reshape(1, H*W);
 
     // initial label matrix that has points assigned for inside and outside
     Mat init_label = Mat::zeros(H*W, 1, CV_32S);
@@ -117,17 +105,6 @@ Mat calc_kmeans(Mat img, int rect[]) {
     kmeans(feature_mat, k, init_label,
            TermCriteria( CV_TERMCRIT_EPS+CV_TERMCRIT_ITER, 1000, 0.0001),
            attempts, KMEANS_USE_INITIAL_LABELS);
-
-    // create the foreground mask matrix
-    // TODO: use reshape here and above
-//    Mat foreground_mask = Mat::zeros(H, W, CV_8UC1);
-//    for (int i = 0; i < W; i++) {
-//        for (int j = 0; j < H; j++) {
-//            foreground_mask.at<char>(j, i) = init_label.at<int>(i*H+j,0);
-//        }
-//    }
-
-//    return foreground_mask;
 
     Mat label = init_label.reshape(0, H);
     label.convertTo(label, CV_8UC1);
