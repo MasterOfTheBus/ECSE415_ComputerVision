@@ -4,7 +4,7 @@
 #include <vector>
 #include "stdlib.h"
 
-#define INTENSITY 0
+#define INTENSITY 1
 
 using namespace std;
 using namespace cv;
@@ -119,7 +119,12 @@ Mat calc_kmeans(Mat img, int rect[]) {
 Mat calc_gmm(Mat img, int rect[]) {
     int H = img.size().height;
     int W = img.size().width;
-    int clusters = 2, dim = 3;
+    int clusters = 2;
+#if INTENSITY
+    int dim = 1;
+#else
+    int dim = 3;
+#endif
 
     // create the corresponding user drawn rect
     Rect_<double> user_rect(rect[0], rect[1], rect[2], rect[3]);
@@ -149,7 +154,11 @@ Mat calc_gmm(Mat img, int rect[]) {
     for (int row = user_rect.y; row <= user_rect.y+user_rect.height; row++) {
         for (int col = 0; col < W; col++) {
             if ((col < user_rect.x || col >= user_rect.x+user_rect.width)) {
+#if INTENSITY
+                outbox.push_back(img.at<double>(row, col));
+#else
                 outbox.push_back(img.at<Vec3d>(row, col));
+#endif
             }
         }
     }
@@ -191,13 +200,15 @@ Mat calc_graphCut(Mat img, int rect[]) {
     // create the corresponding user drawn rect
     Rect_<double> user_rect(rect[0], rect[1], rect[2], rect[3]);
 
-    Mat mask, bgdModel, fgdModel;
+    Mat mask, bgdModel, fgdModel, in;
 
 #if INTENSITY
-    cvtColor(img, img, CV_RGB2Lab);
+    cvtColor(img, in, CV_RGB2Lab);
+#else
+    in = img;
 #endif
 
-    grabCut(img, mask, user_rect, bgdModel, fgdModel, 3, GC_INIT_WITH_RECT);
+    grabCut(in, mask, user_rect, bgdModel, fgdModel, 3, GC_INIT_WITH_RECT);
 
     Mat foreground_mask = mask & GC_FGD;
 
