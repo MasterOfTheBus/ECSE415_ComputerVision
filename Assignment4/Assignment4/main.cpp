@@ -83,8 +83,8 @@ Mat calc_kmeans(Mat img, int rect[]) {
     Rect_<double> user_rect(rect[0], rect[1], rect[2], rect[3]);
 
     // feature matrix
-//    Mat feature_mat = img.reshape(1, H*W);
-    Mat feature_mat;
+    Mat feature_mat = img.reshape(1, H*W); // doesn't work?
+//    Mat feature_mat;
 #if INTENSITY
     feature_mat = Mat::zeros(H*W, 1, CV_32F);
     cvtColor(img, img, CV_RGB2GRAY);
@@ -94,14 +94,14 @@ Mat calc_kmeans(Mat img, int rect[]) {
         }
     }
 #else
-    feature_mat = Mat::zeros(H*W, 3, CV_32F);
-    for (int col = 0; col < W; col++) {
-        for (int row = 0; row < H; row++) {
-            feature_mat.at<float>(col*H+row,0) = img.at<Vec3f>(row, col)[2]; // red
-            feature_mat.at<float>(col*H+row,1) = img.at<Vec3f>(row, col)[1]; // green
-            feature_mat.at<float>(col*H+row,2) = img.at<Vec3f>(row, col)[0]; // blue
-        }
-    }
+//    feature_mat = Mat::zeros(H*W, 3, CV_32F);
+//    for (int col = 0; col < W; col++) {
+//        for (int row = 0; row < H; row++) {
+//            feature_mat.at<float>(col*H+row,0) = img.at<Vec3f>(row, col)[2]; // red
+//            feature_mat.at<float>(col*H+row,1) = img.at<Vec3f>(row, col)[1]; // green
+//            feature_mat.at<float>(col*H+row,2) = img.at<Vec3f>(row, col)[0]; // blue
+//        }
+//    }
 #endif
 
     // initial label matrix that has points assigned for inside and outside
@@ -120,14 +120,23 @@ Mat calc_kmeans(Mat img, int rect[]) {
 
     // create the foreground mask matrix
     // TODO: use reshape here and above
-    Mat foreground_mask = Mat::zeros(H, W, CV_8UC1);
-    for (int i = 0; i < W; i++) {
-        for (int j = 0; j < H; j++) {
-            foreground_mask.at<char>(j, i) = init_label.at<int>(i*H+j,0);
-        }
-    }
+//    Mat foreground_mask = Mat::zeros(H, W, CV_8UC1);
+//    for (int i = 0; i < W; i++) {
+//        for (int j = 0; j < H; j++) {
+//            foreground_mask.at<char>(j, i) = init_label.at<int>(i*H+j,0);
+//        }
+//    }
 
-    return foreground_mask;
+//    return foreground_mask;
+
+    Mat label = init_label.reshape(0, H);
+    label.convertTo(label, CV_8UC1);
+
+    // why are the labels flipped?
+    char flipper = 1;
+    label = label ^ flipper;
+
+    return label;
 }
 
 Mat calc_gmm(Mat img, int rect[]) {
@@ -154,13 +163,15 @@ Mat calc_gmm(Mat img, int rect[]) {
     covar.push_back(Mat::zeros(dim,dim,CV_64F));
     covar.push_back(Mat::zeros(dim,dim,CV_64F));
 
+    // push the background pixels to a matrix
     Mat outbox;
     outbox.push_back(img.rowRange(0, user_rect.y));
     outbox = outbox.reshape(0, user_rect.y * W);
 
-    for (int row = user_rect.y; row < user_rect.y+user_rect.height; row++) {
+    // the pixels that are on the side of the foreground pixels
+    for (int row = user_rect.y; row <= user_rect.y+user_rect.height; row++) {
         for (int col = 0; col < W; col++) {
-            if ((col < user_rect.x || col > user_rect.x+user_rect.width)) {
+            if ((col < user_rect.x || col >= user_rect.x+user_rect.width)) {
                 outbox.push_back(img.at<Vec3d>(row, col));
             }
         }
@@ -176,10 +187,14 @@ Mat calc_gmm(Mat img, int rect[]) {
     calcCovarMatrix(inbox, covar[0], initial_means.row(0), CV_COVAR_NORMAL | CV_COVAR_ROWS);
     calcCovarMatrix(outbox, covar[1], initial_means.row(1), CV_COVAR_NORMAL | CV_COVAR_ROWS);
 
+    // why does this work? what does it do?
+    covar[0] /= (H*W);
+    covar[1] /= (H*W);
+
     // Initial weight
-    Mat init_weight = Mat::zeros(1, clusters, CV_32F);
-    init_weight.at<float>(0,0) = user_rect.area() / (H*W);
-    init_weight.at<float>(0,1) = 1 - init_weight.at<float>(0,0);
+    Mat init_weight = Mat::zeros(1, clusters, CV_64F);
+    init_weight.at<double>(0,0) = user_rect.area() / (double)(H*W);
+    init_weight.at<double>(0,1) = 1 - init_weight.at<double>(0,0);
     Mat labels;
 
     em.trainE(feature_mat, initial_means, covar, init_weight, noArray(), labels);
@@ -187,7 +202,10 @@ Mat calc_gmm(Mat img, int rect[]) {
     // reshape the labels so that it's an H * W matrix
     labels = labels.reshape(0, H);
     labels.convertTo(labels, CV_8UC1);
-    cout << "labels size: " << labels.size() << endl;
+
+    // for some reason the labelling got flipped around?
+    char flipper = 1;
+    labels = labels ^ flipper;
 
     return labels;
 }
