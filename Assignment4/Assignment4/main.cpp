@@ -102,9 +102,15 @@ Mat calc_kmeans(Mat img, int rect[]) {
 
     // run kmeans
     int k = 2, attempts = 3;
+#if !INTENSITY
     kmeans(feature_mat, k, init_label,
            TermCriteria( CV_TERMCRIT_EPS+CV_TERMCRIT_ITER, 1000, 0.0001),
            attempts, KMEANS_USE_INITIAL_LABELS);
+#else
+    kmeans(feature_mat, k, init_label,
+           TermCriteria( CV_TERMCRIT_EPS+CV_TERMCRIT_ITER, 100000, 0.000001),
+           attempts, KMEANS_USE_INITIAL_LABELS);
+#endif
 
     Mat label = init_label.reshape(0, H);
     label.convertTo(label, CV_8UC1);
@@ -136,7 +142,11 @@ Mat calc_gmm(Mat img, int rect[]) {
     img.convertTo(img, CV_64F);
 
     // Create Expectation Maximization object, feature matrix, initial means matrix
+#if INTENSITY
+    EM em(clusters, EM::COV_MAT_DIAGONAL, TermCriteria(CV_TERMCRIT_EPS+CV_TERMCRIT_ITER, 100000, 0.000001));
+#else
     EM em(clusters, EM::COV_MAT_DIAGONAL, TermCriteria(CV_TERMCRIT_EPS+CV_TERMCRIT_ITER, 1000, 0.0001));
+#endif
     Mat feature_mat = img.reshape(1, H*W);
     Mat initial_means = Mat::zeros(clusters, dim, CV_64F);
 
