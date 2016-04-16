@@ -11,7 +11,6 @@ figure('Position', [10 10 1000 500]);
 while hasFrame(vidReader)
     % read a video frame
     frame = readFrame(vidReader);
-%     frame = imresize(frame, 3);
     
     % estimate the LK-based motion field
     flow1 = estimateFlow(lkFlow, frame);
@@ -23,13 +22,13 @@ while hasFrame(vidReader)
     subplot(1,2,1);
     imshow(frame);
     hold on
-    plot(flow1, 'ScaleFactor', 2); % scaling makes it too large
+    plot(flow1, 'DecimationFactor', [10 10], 'ScaleFactor', 10);
     
     % display the HS optical flow
     subplot(1,2,2);
     imshow(frame);
     hold on
-    plot(flow2, 'ScaleFactor', 2);
+    plot(flow2, 'DecimationFactor', [10 10], 'ScaleFactor', 35);
     
     % pause execution (helps in updating the subplots)
     pause(0)
